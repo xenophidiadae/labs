@@ -11,7 +11,7 @@ Options:
   -f FILE         file with commands, one per line
   -o DIR          output directory for screenshots (default: ./screenshots)
   -d SECONDS      delay after each command before screenshot (default: 2)
-  -w WINDOW_ID    terminal window id; if omitted, active window is used
+  -w WINDOW_ID    terminal window id; if omitted, you will be asked to click the target window
   -l FILE         save command input/output to a text file
   --full-screen   capture the whole screen instead of the terminal window
   -h, --help      show this help
@@ -19,9 +19,7 @@ Options:
 Notes:
   - Empty lines and lines starting with # are ignored.
   - The script literally types commands into the chosen terminal window via xdotool.
-  - Run this script from one terminal, and choose a different terminal window as the target.
-  - For each command it saves two screenshots: before Enter and after command output.
-  - Install dependencies in the VM: xdotool + one of import/scrot/gnome-screenshot/maim.
+  - Install dependencies: xdotool + one of import/scrot/gnome-screenshot/maim.
 EOF
 }
 
@@ -34,64 +32,18 @@ require_cmd() {
 
 check_session() {
   if [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
-    printf 'Wayland detected. xdotool usually cannot type/press Enter reliably there.\n' >&2
-    printf 'Log into an X11/Xorg session or use Wayland-specific tools.\n' >&2
+    printf 'Wayland detected. xdotool cannot type/press Enter reliably here.\n' >&2
+    printf 'Log into an X11/Xorg session for this script to work.\n' >&2
     exit 1
   fi
 }
 
 focus_target_window() {
-  local active_window
-  local geometry
-  local x
-  local y
-
-  xdotool windowraise "$WINDOW_ID"
-  xdotool windowactivate --sync "$WINDOW_ID"
+  # Агрессивный перехват фокуса
+  xdotool windowfocus --sync "$WINDOW_ID" 2>/dev/null || true
+  xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
+  xdotool windowraise "$WINDOW_ID" 2>/dev/null || true
   sleep 0.5
-
-  active_window="$(xdotool getactivewindow 2>/dev/null || true)"
-  if [[ "$active_window" != "$WINDOW_ID" ]]; then
-    geometry="$(xdotool getwindowgeometry --shell "$WINDOW_ID")"
-    eval "$geometry"
-    x=$((X + WIDTH / 2))
-    y=$((Y + HEIGHT / 2))
-    xdotool mousemove --sync "$x" "$y"
-    xdotool click 1
-    sleep 0.5
-  fi
-}
-
-launch_target_terminal() {
-  local launched_window_id=''
-
-  if command -v gnome-terminal >/dev/null 2>&1; then
-    gnome-terminal --title="$TARGET_TITLE" &
-  elif command -v xfce4-terminal >/dev/null 2>&1; then
-    xfce4-terminal --title="$TARGET_TITLE" &
-  elif command -v konsole >/dev/null 2>&1; then
-    konsole --noclose -p tabtitle="$TARGET_TITLE" &
-  elif command -v mate-terminal >/dev/null 2>&1; then
-    mate-terminal --title="$TARGET_TITLE" &
-  elif command -v lxterminal >/dev/null 2>&1; then
-    lxterminal --title="$TARGET_TITLE" &
-  elif command -v xterm >/dev/null 2>&1; then
-    xterm -T "$TARGET_TITLE" &
-  else
-    printf 'No supported terminal emulator found.\n' >&2
-    printf 'Install gnome-terminal, xfce4-terminal, konsole, mate-terminal, lxterminal, or xterm.\n' >&2
-    exit 1
-  fi
-
-  sleep 2
-  launched_window_id="$(xdotool search --name "$TARGET_TITLE" 2>/dev/null | tail -n 1 || true)"
-
-  if [[ -z "$launched_window_id" ]]; then
-    printf 'Could not find the launched terminal window.\n' >&2
-    exit 1
-  fi
-
-  WINDOW_ID="$launched_window_id"
 }
 
 pick_screenshot_tool() {
@@ -144,7 +96,6 @@ WINDOW_ID=''
 FULL_SCREEN='0'
 COMMANDS_BASENAME=''
 LOG_FILE=''
-TARGET_TITLE="lab-capture-target-$$"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -198,33 +149,27 @@ fi
 COMMANDS_BASENAME="$(basename "$COMMANDS_FILE")"
 COMMANDS_BASENAME="${COMMANDS_BASENAME%.*}"
 COMMANDS_BASENAME="$(printf '%s' "$COMMANDS_BASENAME" | tr ' ' '_' | tr -cd '[:alnum:]_-')"
-
-if [[ -z "$COMMANDS_BASENAME" ]]; then
-  COMMANDS_BASENAME='commands'
-fi
-
-if [[ -z "$LOG_FILE" ]]; then
-  LOG_FILE="$OUTPUT_DIR/${COMMANDS_BASENAME}_output.txt"
-fi
+[[ -z "$COMMANDS_BASENAME" ]] && COMMANDS_BASENAME='commands'
+[[ -z "$LOG_FILE" ]] && LOG_FILE="$OUTPUT_DIR/${COMMANDS_BASENAME}_output.txt"
 
 require_cmd xdotool
 check_session
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
+# Если ID окна не передан, просим пользователя кликнуть по нужному окну
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
-  printf 'Launching dedicated target terminal window...\n'
-  launch_target_terminal
+  printf 'Please click on the target terminal window with your mouse...\n'
+  WINDOW_ID="$(xdotool selectwindow)"
 fi
 
 mkdir -p "$OUTPUT_DIR"
-
 : > "$LOG_FILE"
 
 printf 'Using window id: %s\n' "$WINDOW_ID"
 printf 'Using screenshot tool: %s\n' "$SCREENSHOT_TOOL"
 printf 'Saving screenshots to: %s\n' "$OUTPUT_DIR"
 printf 'Saving command log to: %s\n' "$LOG_FILE"
-printf 'Starting in 3 seconds...\n'
+printf 'Starting in 3 seconds. DO NOT touch the mouse or keyboard...\n'
 sleep 3
 
 counter=1
@@ -242,14 +187,24 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 
   printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
 
+  # 1. Захватываем окно
   focus_target_window
+  
+  # 2. Очищаем строку в целевом терминале (Ctrl+U)
   xdotool key --clearmodifiers ctrl+u
   sleep 0.2
+  
+  # 3. Печатаем команду
   xdotool type --clearmodifiers --delay 25 "$command_line"
   sleep 0.2
+  
+  # 4. Скриншот ДО нажатия Enter
   take_screenshot "$input_target"
+  
+  # 5. Нажимаем Enter в целевом окне
   xdotool key --clearmodifiers Return
 
+  # 6. Ждем выполнения команды и делаем скриншот ПОСЛЕ
   sleep "$DELAY_SECONDS"
   take_screenshot "$output_target"
 

@@ -62,6 +62,38 @@ focus_target_window() {
   fi
 }
 
+launch_target_terminal() {
+  local launched_window_id=''
+
+  if command -v gnome-terminal >/dev/null 2>&1; then
+    gnome-terminal --title="$TARGET_TITLE" &
+  elif command -v xfce4-terminal >/dev/null 2>&1; then
+    xfce4-terminal --title="$TARGET_TITLE" &
+  elif command -v konsole >/dev/null 2>&1; then
+    konsole --noclose -p tabtitle="$TARGET_TITLE" &
+  elif command -v mate-terminal >/dev/null 2>&1; then
+    mate-terminal --title="$TARGET_TITLE" &
+  elif command -v lxterminal >/dev/null 2>&1; then
+    lxterminal --title="$TARGET_TITLE" &
+  elif command -v xterm >/dev/null 2>&1; then
+    xterm -T "$TARGET_TITLE" &
+  else
+    printf 'No supported terminal emulator found.\n' >&2
+    printf 'Install gnome-terminal, xfce4-terminal, konsole, mate-terminal, lxterminal, or xterm.\n' >&2
+    exit 1
+  fi
+
+  sleep 2
+  launched_window_id="$(xdotool search --name "$TARGET_TITLE" 2>/dev/null | tail -n 1 || true)"
+
+  if [[ -z "$launched_window_id" ]]; then
+    printf 'Could not find the launched terminal window.\n' >&2
+    exit 1
+  fi
+
+  WINDOW_ID="$launched_window_id"
+}
+
 pick_screenshot_tool() {
   for tool in import scrot gnome-screenshot maim; do
     if command -v "$tool" >/dev/null 2>&1; then
@@ -112,6 +144,7 @@ WINDOW_ID=''
 FULL_SCREEN='0'
 COMMANDS_BASENAME=''
 LOG_FILE=''
+TARGET_TITLE="lab-capture-target-$$"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -179,8 +212,8 @@ check_session
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
-  printf 'Click the target terminal window...\n'
-  WINDOW_ID="$(xdotool selectwindow)"
+  printf 'Launching dedicated target terminal window...\n'
+  launch_target_terminal
 fi
 
 mkdir -p "$OUTPUT_DIR"
@@ -207,7 +240,6 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   input_target="$OUTPUT_DIR/$input_file"
   output_target="$OUTPUT_DIR/$output_file"
 
-  printf '[%02d] %s\n' "$counter" "$command_line"
   printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
 
   focus_target_window

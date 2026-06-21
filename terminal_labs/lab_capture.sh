@@ -40,6 +40,28 @@ check_session() {
   fi
 }
 
+focus_target_window() {
+  local active_window
+  local geometry
+  local x
+  local y
+
+  xdotool windowraise "$WINDOW_ID"
+  xdotool windowactivate --sync "$WINDOW_ID"
+  sleep 0.5
+
+  active_window="$(xdotool getactivewindow 2>/dev/null || true)"
+  if [[ "$active_window" != "$WINDOW_ID" ]]; then
+    geometry="$(xdotool getwindowgeometry --shell "$WINDOW_ID")"
+    eval "$geometry"
+    x=$((X + WIDTH / 2))
+    y=$((Y + HEIGHT / 2))
+    xdotool mousemove --sync "$x" "$y"
+    xdotool click 1
+    sleep 0.5
+  fi
+}
+
 pick_screenshot_tool() {
   for tool in import scrot gnome-screenshot maim; do
     if command -v "$tool" >/dev/null 2>&1; then
@@ -188,8 +210,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   printf '[%02d] %s\n' "$counter" "$command_line"
   printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
 
-  xdotool windowactivate --sync "$WINDOW_ID"
-  sleep 0.5
+  focus_target_window
   xdotool key --clearmodifiers ctrl+u
   sleep 0.2
   xdotool type --clearmodifiers --delay 25 "$command_line"

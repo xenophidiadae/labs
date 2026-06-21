@@ -1,0 +1,16 @@
+# Лаба 14 - Работа в редакторе vim
+
+mkdir -p lab14
+touch lab14/vim_demo.txt
+printf 'first line\nsecond line\nthird line\n' > lab14/vim_demo.txt
+cat lab14/vim_demo.txt
+vim -c 'set number' -c 'q' lab14/vim_demo.txt
+vim -c 'normal G' -c 'q' lab14/vim_demo.txt
+vim -c 'normal gg' -c 'q' lab14/vim_demo.txt
+vim -c 'normal A !!!' -c 'wq' lab14/vim_demo.txt
+cat lab14/vim_demo.txt
+vim -c 'normal ggOInserted line' -c 'wq' lab14/vim_demo.txt
+cat lab14/vim_demo.txt
+vim -c ':%s/line/STRING/g' -c 'wq' lab14/vim_demo.txt
+cat lab14/vim_demo.txt
+vim -c '!pwd' -c 'q' lab14/vim_demo.txt

@@ -1,0 +1,15 @@
+# Лаба 13 - Terminal часть II
+
+mkdir -p lab13/project/src lab13/project/doc lab13/project/assets/images lab13/project/assets/styles lab13/project/assets/scripts
+touch lab13/project/src/main.py lab13/project/src/utils.py lab13/project/src/config.json
+ls -la lab13/project
+find lab13 -name "*.py"
+find lab13 -name "*.json"
+chmod 755 lab13/project/src/main.py
+ls -la lab13/project/src
+grep "main" lab13/project/src/main.py
+sed -n '1,5p' lab13/project/src/main.py
+ps aux
+ps -ef
+pgrep bash
+pstree

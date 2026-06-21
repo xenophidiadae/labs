@@ -32,6 +32,14 @@ require_cmd() {
   fi
 }
 
+check_session() {
+  if [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
+    printf 'Wayland detected. xdotool usually cannot type/press Enter reliably there.\n' >&2
+    printf 'Log into an X11/Xorg session or use Wayland-specific tools.\n' >&2
+    exit 1
+  fi
+}
+
 pick_screenshot_tool() {
   for tool in import scrot gnome-screenshot maim; do
     if command -v "$tool" >/dev/null 2>&1; then
@@ -145,6 +153,7 @@ if [[ -z "$LOG_FILE" ]]; then
 fi
 
 require_cmd xdotool
+check_session
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
@@ -180,11 +189,13 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
 
   xdotool windowactivate --sync "$WINDOW_ID"
+  sleep 0.5
+  xdotool key --clearmodifiers ctrl+u
   sleep 0.2
-  xdotool key --window "$WINDOW_ID" ctrl+u
-  xdotool type --delay 25 --window "$WINDOW_ID" "$command_line"
+  xdotool type --clearmodifiers --delay 25 "$command_line"
+  sleep 0.2
   take_screenshot "$input_target"
-  xdotool key --window "$WINDOW_ID" Return
+  xdotool key --clearmodifiers Return
 
   sleep "$DELAY_SECONDS"
   take_screenshot "$output_target"

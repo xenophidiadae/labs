@@ -1,4 +1,5 @@
 # Лаба 13 - Terminal часть II
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
 
 mkdir -p lab13/project/src lab13/project/doc lab13/project/assets/images lab13/project/assets/styles lab13/project/assets/scripts
 touch lab13/project/src/main.py lab13/project/src/utils.py lab13/project/src/config.json

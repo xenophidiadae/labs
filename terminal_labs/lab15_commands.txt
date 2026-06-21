@@ -1,4 +1,5 @@
 # Лаба 15 - Bash script
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
 
 mkdir -p lab15
 cp terminal_labs/templates/myscript.sh lab15/myscript.sh

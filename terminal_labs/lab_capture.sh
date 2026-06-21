@@ -19,6 +19,8 @@ Options:
 Notes:
   - Empty lines and lines starting with # are ignored.
   - The script literally types commands into the chosen terminal window via xdotool.
+  - You can add post-actions after a command: vim test.txt ### wait=1; vim-quit
+  - Supported post-actions: wait=N, key=KEY, type=TEXT, enter, vim-quit, vim-save-quit, confirm-install.
   - Install dependencies: xdotool + one of import/scrot/gnome-screenshot/maim.
 EOF
 }
@@ -44,6 +46,134 @@ focus_target_window() {
   xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
   xdotool windowraise "$WINDOW_ID" 2>/dev/null || true
   sleep 0.5
+}
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+split_command_and_actions() {
+  local raw_line="$1"
+
+  COMMAND_TEXT="$raw_line"
+  ACTIONS_TEXT=''
+
+  if [[ "$raw_line" == *' ### '* ]]; then
+    COMMAND_TEXT="${raw_line%% ### *}"
+    ACTIONS_TEXT="${raw_line#* ### }"
+  fi
+
+  COMMAND_TEXT="$(trim_whitespace "$COMMAND_TEXT")"
+  ACTIONS_TEXT="$(trim_whitespace "$ACTIONS_TEXT")"
+}
+
+press_key() {
+  local key_name="$1"
+
+  focus_target_window
+  xdotool key --clearmodifiers "$key_name"
+}
+
+type_text() {
+  local text="$1"
+
+  focus_target_window
+  xdotool type --clearmodifiers --delay 25 "$text"
+}
+
+is_install_like_command() {
+  local lower_command
+  lower_command="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+
+  [[ "$lower_command" =~ (^|[[:space:]])(apt|apt-get|yum|dnf|pacman|yay|paru|npm|pnpm|yarn|pip|pip3|composer|gem|cargo)[[:space:]].*(install|add)([[:space:]]|$) ]]
+}
+
+is_interactive_vim_command() {
+  local lower_command
+  lower_command="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+
+  [[ "$lower_command" =~ ^[[:space:]]*(vim|nvim|vi)([[:space:]]|$) ]] && [[ ! "$lower_command" =~ (^|[[:space:]])-c([[:space:]]|$) ]]
+}
+
+run_named_action() {
+  local action_name="$1"
+
+  case "$action_name" in
+    enter|return)
+      press_key Return
+      ;;
+    vim-quit)
+      press_key Escape
+      sleep 0.2
+      type_text ':q!'
+      sleep 0.2
+      press_key Return
+      ;;
+    vim-save-quit)
+      press_key Escape
+      sleep 0.2
+      type_text ':wq'
+      sleep 0.2
+      press_key Return
+      ;;
+    confirm-install)
+      press_key Return
+      sleep 1
+      ;;
+    *)
+      printf 'Unknown post-action: %s\n' "$action_name" >&2
+      exit 1
+      ;;
+  esac
+}
+
+run_post_actions() {
+  local actions_text="$1"
+  local action
+  local trimmed_action
+  local key_name
+  local typed_text
+  local wait_seconds
+
+  IFS=';' read -r -a action_list <<< "$actions_text"
+  for action in "${action_list[@]}"; do
+    trimmed_action="$(trim_whitespace "$action")"
+    [[ -z "$trimmed_action" ]] && continue
+
+    case "$trimmed_action" in
+      wait=*)
+        wait_seconds="${trimmed_action#wait=}"
+        sleep "$wait_seconds"
+        ;;
+      key=*)
+        key_name="${trimmed_action#key=}"
+        key_name="$(trim_whitespace "$key_name")"
+        press_key "$key_name"
+        ;;
+      type=*)
+        typed_text="${trimmed_action#type=}"
+        type_text "$typed_text"
+        ;;
+      *)
+        run_named_action "$trimmed_action"
+        ;;
+    esac
+  done
+}
+
+run_auto_actions() {
+  local command_text="$1"
+
+  if is_install_like_command "$command_text"; then
+    run_named_action confirm-install
+  fi
+
+  if is_interactive_vim_command "$command_text"; then
+    run_named_action vim-quit
+  fi
 }
 
 pick_screenshot_tool() {
@@ -180,12 +310,18 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
     continue
   fi
 
+  split_command_and_actions "$command_line"
+
+  if [[ -z "$COMMAND_TEXT" ]]; then
+    continue
+  fi
+
   input_file=$(printf '%02d_%s_input.png' "$counter" "$COMMANDS_BASENAME")
   output_file=$(printf '%02d_%s_output.png' "$counter" "$COMMANDS_BASENAME")
   input_target="$OUTPUT_DIR/$input_file"
   output_target="$OUTPUT_DIR/$output_file"
 
-  printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
+  printf '[%02d] $ %s\n' "$counter" "$COMMAND_TEXT" >> "$LOG_FILE"
 
   # 1. Захватываем окно
   focus_target_window
@@ -195,7 +331,7 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   sleep 0.2
   
   # 3. Печатаем команду
-  xdotool type --clearmodifiers --delay 25 "$command_line"
+  xdotool type --clearmodifiers --delay 25 "$COMMAND_TEXT"
   sleep 0.2
   
   # 4. Скриншот ДО нажатия Enter
@@ -206,6 +342,13 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 
   # 6. Ждем выполнения команды и делаем скриншот ПОСЛЕ
   sleep "$DELAY_SECONDS"
+
+  if [[ -n "$ACTIONS_TEXT" ]]; then
+    run_post_actions "$ACTIONS_TEXT"
+  else
+    run_auto_actions "$COMMAND_TEXT"
+  fi
+
   take_screenshot "$output_target"
 
   counter=$((counter + 1))

@@ -19,6 +19,7 @@ Options:
 Notes:
   - Empty lines and lines starting with # are ignored.
   - The script literally types commands into the chosen terminal window via xdotool.
+  - Run this script from one terminal, and choose a different terminal window as the target.
   - For each command it saves two screenshots: before Enter and after command output.
   - Install dependencies in the VM: xdotool + one of import/scrot/gnome-screenshot/maim.
 EOF
@@ -147,9 +148,8 @@ require_cmd xdotool
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
-  printf 'Focus the terminal window. Capturing active window id in 3 seconds...\n'
-  sleep 3
-  WINDOW_ID="$(xdotool getactivewindow)"
+  printf 'Click the target terminal window...\n'
+  WINDOW_ID="$(xdotool selectwindow)"
 fi
 
 mkdir -p "$OUTPUT_DIR"
@@ -180,6 +180,8 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
   printf '[%02d] $ %s\n' "$counter" "$command_line" >> "$LOG_FILE"
 
   xdotool windowactivate --sync "$WINDOW_ID"
+  sleep 0.2
+  xdotool key --window "$WINDOW_ID" ctrl+u
   xdotool type --delay 25 --window "$WINDOW_ID" "$command_line"
   take_screenshot "$input_target"
   xdotool key --window "$WINDOW_ID" Return

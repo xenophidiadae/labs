@@ -1,12 +1,12 @@
 # Лаба 15 - Bash script
 
 mkdir -p lab15
-printf '#!/bin/bash\npwd\nwhoami\n' > lab15/myscript.sh
+cp terminal_labs/templates/myscript.sh lab15/myscript.sh
 cat lab15/myscript.sh
 chmod +x lab15/myscript.sh
 ls -la lab15/myscript.sh
 ./lab15/myscript.sh
-printf '#!/bin/bash\necho "HOME: $HOME"\nname="Student"\necho "User: $name"\nnum1=7\nnum2=5\necho "Sum: $((num1 + num2))"\nif [ $num1 -gt $num2 ]; then\n  echo "num1 больше num2"\nelse\n  echo "num1 не больше num2"\nfi\nif [ -f lab15/myscript.sh ]; then\n  echo "Файл существует"\nelse\n  echo "Файл не найден"\nfi\n' > lab15/check_script.sh
+cp terminal_labs/templates/check_script.sh lab15/check_script.sh
 cat lab15/check_script.sh
 chmod +x lab15/check_script.sh
 ./lab15/check_script.sh

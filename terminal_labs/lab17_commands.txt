@@ -3,12 +3,12 @@
 
 mkdir -p lab17
 printf 'int add(int a, int b) { return a + b; }\nint sub(int a, int b) { return a - b; }\n' > lab17/mylib_src.txt
-printf '#include <dlfcn.h>\n#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char **argv) {\n    if (argc != 5) {\n        printf("usage: %s lib func a b\\n", argv[0]);\n        return 1;\n    }\n    void *h = dlopen(argv[1], RTLD_LAZY);\n    int (*f)(int, int) = dlsym(h, argv[2]);\n    printf("result=%d\\n", f(atoi(argv[3]), atoi(argv[4])));\n    dlclose(h);\n    return 0;\n}\n' > lab17/main_src.txt
+printf '#include <dlfcn.h>\n#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char **argv) {\n    void *handle;\n    int (*func)(int, int);\n    char *error;\n\n    if (argc != 5) {\n        fprintf(stderr, "Usage: %s lib func a b\\n", argv[0]);\n        return 1;\n    }\n\n    handle = dlopen(argv[1], RTLD_LAZY);\n    if (!handle) {\n        fprintf(stderr, "%s\\n", dlerror());\n        return 1;\n    }\n\n    dlerror();\n    *(void **) (&func) = dlsym(handle, argv[2]);\n    error = dlerror();\n    if (error != NULL) {\n        fprintf(stderr, "%s\\n", error);\n        dlclose(handle);\n        return 1;\n    }\n\n    printf("result=%d\\n", func(atoi(argv[3]), atoi(argv[4])));\n    dlclose(handle);\n    return 0;\n}\n' > lab17/main_src.txt
 nano lab17/mylib.c ### wait=1; key=ctrl+r; wait=1; type=lab17/mylib_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
 nano lab17/main.c ### wait=1; key=ctrl+r; wait=1; type=lab17/main_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
 cat lab17/mylib.c
 cat lab17/main.c
-gcc -fPIC -shared lab17/mylib.c -o lab17/libmylib.so
-gcc lab17/main.c -ldl -o lab17/main
+gcc -Wall -fPIC -shared lab17/mylib.c -o lab17/libmylib.so
+gcc -Wall lab17/main.c -ldl -o lab17/main
 ./lab17/main ./lab17/libmylib.so add 7 5
 ./lab17/main ./lab17/libmylib.so sub 7 5

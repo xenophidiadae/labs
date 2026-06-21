@@ -2,13 +2,18 @@
 # Код подается в nano целиком через Ctrl+R, без построчных скринов
 
 mkdir -p lab20
-printf '#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    pid_t pid = fork();\n    if (pid == 0) {\n        execlp("echo", "echo", "hello from child", NULL);\n        return 0;\n    }\n    wait(NULL);\n    printf("parent done\\n");\n    return 0;\n}\n' > lab20/fork_exec_src.txt
+printf '#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    pid_t pid = fork();\n    if (pid == 0) {\n        execlp("echo", "echo", "hello from child", NULL);\n        perror("execlp");\n        return 1;\n    }\n    wait(NULL);\n    printf("parent done\\n");\n    return 0;\n}\n' > lab20/fork_exec_src.txt
 printf '#define _GNU_SOURCE\n#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    pid_t pid = vfork();\n    if (pid == 0) {\n        printf("child pid=%d\\n", getpid());\n        _exit(0);\n    }\n    wait(NULL);\n    printf("parent pid=%d\\n", getpid());\n    return 0;\n}\n' > lab20/vfork_src.txt
+printf '#define _GNU_SOURCE\n#include <sched.h>\n#include <signal.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint child_func(void *arg) {\n    printf("clone child: %s pid=%d\\n", (char *)arg, getpid());\n    return 0;\n}\n\nint main(void) {\n    const int stack_size = 1024 * 1024;\n    char *stack = malloc(stack_size);\n    pid_t pid;\n\n    if (!stack) {\n        perror("malloc");\n        return 1;\n    }\n\n    pid = clone(child_func, stack + stack_size, SIGCHLD, "hello");\n    if (pid == -1) {\n        perror("clone");\n        free(stack);\n        return 1;\n    }\n\n    waitpid(pid, NULL, 0);\n    printf("clone parent pid=%d child=%d\\n", getpid(), pid);\n    free(stack);\n    return 0;\n}\n' > lab20/clone_src.txt
 nano lab20/fork_exec.c ### wait=1; key=ctrl+r; wait=1; type=lab20/fork_exec_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
 nano lab20/vfork_demo.c ### wait=1; key=ctrl+r; wait=1; type=lab20/vfork_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+nano lab20/clone_demo.c ### wait=1; key=ctrl+r; wait=1; type=lab20/clone_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
 cat lab20/fork_exec.c
 cat lab20/vfork_demo.c
+cat lab20/clone_demo.c
 gcc lab20/fork_exec.c -o lab20/fork_exec
 gcc lab20/vfork_demo.c -o lab20/vfork_demo
+gcc lab20/clone_demo.c -o lab20/clone_demo
 ./lab20/fork_exec
 ./lab20/vfork_demo
+./lab20/clone_demo

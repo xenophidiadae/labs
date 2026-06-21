@@ -1,0 +1,19 @@
+# Лаба 19 - Ссылки Linux
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+mkdir -p lab19
+printf 'Hello World!\n' > lab19/original.txt
+ln lab19/original.txt lab19/hardlink.txt
+ln -s original.txt lab19/softlink.txt
+ls -li lab19
+stat lab19/original.txt
+stat lab19/hardlink.txt
+stat lab19/softlink.txt
+printf 'Added through hard link\n' >> lab19/hardlink.txt
+cat lab19/original.txt
+cat lab19/hardlink.txt
+cat lab19/softlink.txt
+rm lab19/original.txt
+ls -li lab19
+cat lab19/hardlink.txt
+cat lab19/softlink.txt

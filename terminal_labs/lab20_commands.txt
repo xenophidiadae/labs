@@ -1,0 +1,14 @@
+# Лаба 20 - fork, vfork, exec, clone
+# Код подается в nano целиком через Ctrl+R, без построчных скринов
+
+mkdir -p lab20
+printf '#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    pid_t pid = fork();\n    if (pid == 0) {\n        execlp("echo", "echo", "hello from child", NULL);\n        return 0;\n    }\n    wait(NULL);\n    printf("parent done\\n");\n    return 0;\n}\n' > lab20/fork_exec_src.txt
+printf '#define _GNU_SOURCE\n#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    pid_t pid = vfork();\n    if (pid == 0) {\n        printf("child pid=%d\\n", getpid());\n        _exit(0);\n    }\n    wait(NULL);\n    printf("parent pid=%d\\n", getpid());\n    return 0;\n}\n' > lab20/vfork_src.txt
+nano lab20/fork_exec.c ### wait=1; key=ctrl+r; wait=1; type=lab20/fork_exec_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+nano lab20/vfork_demo.c ### wait=1; key=ctrl+r; wait=1; type=lab20/vfork_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+cat lab20/fork_exec.c
+cat lab20/vfork_demo.c
+gcc lab20/fork_exec.c -o lab20/fork_exec
+gcc lab20/vfork_demo.c -o lab20/vfork_demo
+./lab20/fork_exec
+./lab20/vfork_demo

@@ -18,6 +18,7 @@ Options:
   --full-screen   capture the whole screen instead of the terminal window
   --click-focus   click inside the terminal before every command
   --paste-input   enter commands via clipboard paste instead of xdotool type
+  --names STYLE   directory naming style: laba or laboratornaya
   -h, --help      show this help
 
 Notes:
@@ -27,6 +28,7 @@ Notes:
   - The script literally types commands into the chosen terminal window via xdotool.
   - Some terminals (GNOME Terminal, Ghostty) may need click-to-focus behavior.
   - Some terminals also ignore synthetic typing; for them the script can paste commands.
+  - Directory names inside commands can be rewritten to labaNN or laboratornayaNN.
   - You can add post-actions after a command: vim test.txt ### wait=1; vim-quit
   - Supported post-actions: wait=N, key=KEY, type=TEXT, enter, vim-quit, vim-save-quit, confirm-install.
   - Install dependencies: xdotool + one of import/scrot/gnome-screenshot/maim.
@@ -155,6 +157,25 @@ split_command_and_actions() {
 
   COMMAND_TEXT="$(trim_whitespace "$COMMAND_TEXT")"
   ACTIONS_TEXT="$(trim_whitespace "$ACTIONS_TEXT")"
+}
+
+validate_name_style() {
+  case "$1" in
+    laba|laboratornaya)
+      ;;
+    *)
+      printf 'Unknown naming style: %s\n' "$1" >&2
+      printf 'Supported styles: laba, laboratornaya\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
+apply_name_style() {
+  local text="$1"
+  local replacement_prefix="$NAME_STYLE"
+
+  printf '%s' "$text" | perl -pe 's/\blabor(?=\d)/$ENV{LAB_CAPTURE_PREFIX}/g'
 }
 
 press_key() {
@@ -366,6 +387,7 @@ TOTAL_SCREENSHOTS=0
 COMMAND_FILES=()
 CLICK_FOCUS='0'
 INPUT_MODE='type'
+NAME_STYLE='laboratornaya'
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -401,6 +423,10 @@ while [[ $# -gt 0 ]]; do
       INPUT_MODE='paste'
       shift
       ;;
+    --names)
+      NAME_STYLE="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -414,6 +440,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 collect_command_files "$COMMANDS_PATH"
+validate_name_style "$NAME_STYLE"
 
 require_cmd xdotool
 require_cmd xprop
@@ -448,6 +475,7 @@ if [[ -n "$LOG_FILE" ]]; then
 fi
 printf 'Click-to-focus mode: %s\n' "$CLICK_FOCUS"
 printf 'Input mode: %s\n' "$INPUT_MODE"
+printf 'Directory naming style: %s\n' "$NAME_STYLE"
 printf 'Found command files: %d\n' "${#COMMAND_FILES[@]}"
 printf 'Starting in 3 seconds. DO NOT touch the mouse or keyboard...\n'
 sleep 3
@@ -477,6 +505,11 @@ for command_file in "${COMMAND_FILES[@]}"; do
 
     if [[ -z "$COMMAND_TEXT" ]]; then
       continue
+    fi
+
+    COMMAND_TEXT="$(LAB_CAPTURE_PREFIX="$NAME_STYLE" apply_name_style "$COMMAND_TEXT")"
+    if [[ -n "$ACTIONS_TEXT" ]]; then
+      ACTIONS_TEXT="$(LAB_CAPTURE_PREFIX="$NAME_STYLE" apply_name_style "$ACTIONS_TEXT")"
     fi
 
     input_file=$(printf '%02d_%s_input.png' "$counter" "$COMMANDS_BASENAME")

@@ -1,7 +1,7 @@
 # Лаба 22 - Сигналы и сокеты
 # Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
 
-mkdir -p lab22
+mkdir -p labor22
 sleep 1000 &
 jobs
 ps -ef | grep sleep
@@ -12,6 +12,6 @@ ping -c 2 127.0.0.1
 ss -ltn
 ss -lun
 hostname -I
-nc -l 127.0.0.1 5050 > lab22/socket_output.txt &
+nc -l 127.0.0.1 5050 > labor22/socket_output.txt &
 echo hello from client | nc 127.0.0.1 5050
-cat lab22/socket_output.txt
+cat labor22/socket_output.txt

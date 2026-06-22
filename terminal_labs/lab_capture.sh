@@ -5,19 +5,23 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./lab_capture.sh -f commands.txt [-o screenshots] [-d 2] [-w 0] [--full-screen] [-l output.txt]
+  ./lab_capture.sh [-f commands.txt|directory] [-o screenshots] [-d 2] [-w 0] [--full-screen] [-l output.txt]
 
 Options:
-  -f FILE         file with commands, one per line
+  -f PATH         file with commands or directory with .txt files;
+                  if omitted, all .txt files in the current directory are processed
   -o DIR          output directory for screenshots (default: ./screenshots)
   -d SECONDS      delay after each command before screenshot (default: 2)
   -w WINDOW_ID    terminal window id; if omitted, you will be asked to click the target window
-  -l FILE         save command input/output to a text file
+  -l FILE         save command input/output to a text file;
+                  for multiple command files, everything is appended into one log
   --full-screen   capture the whole screen instead of the terminal window
   -h, --help      show this help
 
 Notes:
   - Empty lines and lines starting with # are ignored.
+  - When several .txt files are found, they are processed one by one in name order.
+  - The terminal is cleared between command files.
   - The script literally types commands into the chosen terminal window via xdotool.
   - You can add post-actions after a command: vim test.txt ### wait=1; vim-quit
   - Supported post-actions: wait=N, key=KEY, type=TEXT, enter, vim-quit, vim-save-quit, confirm-install.
@@ -41,11 +45,26 @@ check_session() {
 }
 
 focus_target_window() {
-  # Агрессивный перехват фокуса
   xdotool windowfocus --sync "$WINDOW_ID" 2>/dev/null || true
   xdotool windowactivate --sync "$WINDOW_ID" 2>/dev/null || true
   xdotool windowraise "$WINDOW_ID" 2>/dev/null || true
   sleep 0.5
+}
+
+send_key() {
+  local key_name="$1"
+
+  focus_target_window
+  xdotool key --window "$WINDOW_ID" --clearmodifiers "$key_name" 2>/dev/null || \
+    xdotool key --clearmodifiers "$key_name"
+}
+
+send_text() {
+  local text="$1"
+
+  focus_target_window
+  xdotool type --window "$WINDOW_ID" --clearmodifiers --delay 25 "$text" 2>/dev/null || \
+    xdotool type --clearmodifiers --delay 25 "$text"
 }
 
 trim_whitespace() {
@@ -73,15 +92,64 @@ split_command_and_actions() {
 press_key() {
   local key_name="$1"
 
-  focus_target_window
-  xdotool key --clearmodifiers "$key_name"
+  send_key "$key_name"
 }
 
 type_text() {
   local text="$1"
 
-  focus_target_window
-  xdotool type --clearmodifiers --delay 25 "$text"
+  send_text "$text"
+}
+
+sanitize_basename() {
+  local base_name="$1"
+
+  base_name="${base_name%.*}"
+  base_name="$(printf '%s' "$base_name" | tr ' ' '_' | tr -cd '[:alnum:]_-')"
+  [[ -z "$base_name" ]] && base_name='commands'
+  printf '%s\n' "$base_name"
+}
+
+append_log_header() {
+  local commands_file="$1"
+
+  printf '===== %s =====\n' "$commands_file" >> "$CURRENT_LOG_FILE"
+}
+
+clear_terminal_window() {
+  type_text 'clear'
+  press_key Return
+  sleep 0.4
+}
+
+collect_command_files() {
+  local input_path="$1"
+  local resolved_path
+
+  COMMAND_FILES=()
+
+  if [[ -n "$input_path" ]]; then
+    if [[ -d "$input_path" ]]; then
+      while IFS= read -r file_path; do
+        COMMAND_FILES+=("$file_path")
+      done < <(find "$input_path" -maxdepth 1 -type f -name '*.txt' | sort)
+    elif [[ -f "$input_path" ]]; then
+      COMMAND_FILES+=("$input_path")
+    else
+      printf 'Commands path not found: %s\n' "$input_path" >&2
+      exit 1
+    fi
+  else
+    while IFS= read -r file_path; do
+      COMMAND_FILES+=("$file_path")
+    done < <(find . -maxdepth 1 -type f -name '*.txt' | sort)
+  fi
+
+  if [[ ${#COMMAND_FILES[@]} -eq 0 ]]; then
+    resolved_path="${input_path:-.}"
+    printf 'No .txt command files found in: %s\n' "$resolved_path" >&2
+    exit 1
+  fi
 }
 
 is_install_like_command() {
@@ -219,18 +287,20 @@ take_screenshot() {
   esac
 }
 
-COMMANDS_FILE=''
+COMMANDS_PATH=''
 OUTPUT_DIR='screenshots'
 DELAY_SECONDS='2'
 WINDOW_ID=''
 FULL_SCREEN='0'
-COMMANDS_BASENAME=''
 LOG_FILE=''
+CURRENT_LOG_FILE=''
+TOTAL_SCREENSHOTS=0
+COMMAND_FILES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -f)
-      COMMANDS_FILE="$2"
+      COMMANDS_PATH="$2"
       shift 2
       ;;
     -o)
@@ -265,93 +335,92 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$COMMANDS_FILE" ]]; then
-  printf 'You must pass -f commands.txt\n\n' >&2
-  usage >&2
-  exit 1
-fi
-
-if [[ ! -f "$COMMANDS_FILE" ]]; then
-  printf 'Commands file not found: %s\n' "$COMMANDS_FILE" >&2
-  exit 1
-fi
-
-COMMANDS_BASENAME="$(basename "$COMMANDS_FILE")"
-COMMANDS_BASENAME="${COMMANDS_BASENAME%.*}"
-COMMANDS_BASENAME="$(printf '%s' "$COMMANDS_BASENAME" | tr ' ' '_' | tr -cd '[:alnum:]_-')"
-[[ -z "$COMMANDS_BASENAME" ]] && COMMANDS_BASENAME='commands'
-[[ -z "$LOG_FILE" ]] && LOG_FILE="$OUTPUT_DIR/${COMMANDS_BASENAME}_output.txt"
+collect_command_files "$COMMANDS_PATH"
 
 require_cmd xdotool
 check_session
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
-# Если ID окна не передан, просим пользователя кликнуть по нужному окну
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
   printf 'Please click on the target terminal window with your mouse...\n'
   WINDOW_ID="$(xdotool selectwindow)"
 fi
 
 mkdir -p "$OUTPUT_DIR"
-: > "$LOG_FILE"
+
+if [[ -n "$LOG_FILE" ]]; then
+  : > "$LOG_FILE"
+fi
 
 printf 'Using window id: %s\n' "$WINDOW_ID"
 printf 'Using screenshot tool: %s\n' "$SCREENSHOT_TOOL"
 printf 'Saving screenshots to: %s\n' "$OUTPUT_DIR"
-printf 'Saving command log to: %s\n' "$LOG_FILE"
+if [[ -n "$LOG_FILE" ]]; then
+  printf 'Saving command log to: %s\n' "$LOG_FILE"
+fi
+printf 'Found command files: %d\n' "${#COMMAND_FILES[@]}"
 printf 'Starting in 3 seconds. DO NOT touch the mouse or keyboard...\n'
 sleep 3
 
-counter=1
-while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
-  command_line="${raw_line%%$'\r'}"
+for command_file in "${COMMAND_FILES[@]}"; do
+  COMMANDS_BASENAME="$(sanitize_basename "$(basename "$command_file")")"
 
-  if [[ -z "$command_line" || "$command_line" =~ ^[[:space:]]*# ]]; then
-    continue
-  fi
-
-  split_command_and_actions "$command_line"
-
-  if [[ -z "$COMMAND_TEXT" ]]; then
-    continue
-  fi
-
-  input_file=$(printf '%02d_%s_input.png' "$counter" "$COMMANDS_BASENAME")
-  output_file=$(printf '%02d_%s_output.png' "$counter" "$COMMANDS_BASENAME")
-  input_target="$OUTPUT_DIR/$input_file"
-  output_target="$OUTPUT_DIR/$output_file"
-
-  printf '[%02d] $ %s\n' "$counter" "$COMMAND_TEXT" >> "$LOG_FILE"
-
-  # 1. Захватываем окно
-  focus_target_window
-  
-  # 2. Очищаем строку в целевом терминале (Ctrl+U)
-  xdotool key --clearmodifiers ctrl+u
-  sleep 0.2
-  
-  # 3. Печатаем команду
-  xdotool type --clearmodifiers --delay 25 "$COMMAND_TEXT"
-  sleep 0.2
-  
-  # 4. Скриншот ДО нажатия Enter
-  take_screenshot "$input_target"
-  
-  # 5. Нажимаем Enter в целевом окне
-  xdotool key --clearmodifiers Return
-
-  # 6. Ждем выполнения команды и делаем скриншот ПОСЛЕ
-  sleep "$DELAY_SECONDS"
-
-  if [[ -n "$ACTIONS_TEXT" ]]; then
-    run_post_actions "$ACTIONS_TEXT"
+  if [[ -n "$LOG_FILE" ]]; then
+    CURRENT_LOG_FILE="$LOG_FILE"
   else
-    run_auto_actions "$COMMAND_TEXT"
+    CURRENT_LOG_FILE="$OUTPUT_DIR/${COMMANDS_BASENAME}_output.txt"
+    : > "$CURRENT_LOG_FILE"
   fi
 
-  take_screenshot "$output_target"
+  append_log_header "$command_file"
+  printf 'Processing: %s\n' "$command_file"
 
-  counter=$((counter + 1))
-done < "$COMMANDS_FILE"
+  counter=1
+  while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
+    command_line="${raw_line%%$'\r'}"
 
-printf 'Done. Captured %d screenshot(s).\n' $(((counter - 1) * 2))
+    if [[ -z "$command_line" || "$command_line" =~ ^[[:space:]]*# ]]; then
+      continue
+    fi
+
+    split_command_and_actions "$command_line"
+
+    if [[ -z "$COMMAND_TEXT" ]]; then
+      continue
+    fi
+
+    input_file=$(printf '%02d_%s_input.png' "$counter" "$COMMANDS_BASENAME")
+    output_file=$(printf '%02d_%s_output.png' "$counter" "$COMMANDS_BASENAME")
+    input_target="$OUTPUT_DIR/$input_file"
+    output_target="$OUTPUT_DIR/$output_file"
+
+    printf '[%02d] $ %s\n' "$counter" "$COMMAND_TEXT" >> "$CURRENT_LOG_FILE"
+
+    focus_target_window
+    send_key ctrl+u
+    sleep 0.2
+    send_text "$COMMAND_TEXT"
+    sleep 0.2
+
+    take_screenshot "$input_target"
+    send_key Return
+
+    sleep "$DELAY_SECONDS"
+
+    if [[ -n "$ACTIONS_TEXT" ]]; then
+      run_post_actions "$ACTIONS_TEXT"
+    else
+      run_auto_actions "$COMMAND_TEXT"
+    fi
+
+    take_screenshot "$output_target"
+
+    TOTAL_SCREENSHOTS=$((TOTAL_SCREENSHOTS + 2))
+    counter=$((counter + 1))
+  done < "$command_file"
+
+  printf '\n' >> "$CURRENT_LOG_FILE"
+  clear_terminal_window
+done
+
+printf 'Done. Captured %d screenshot(s) from %d file(s).\n' "$TOTAL_SCREENSHOTS" "${#COMMAND_FILES[@]}"

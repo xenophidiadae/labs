@@ -4,8 +4,8 @@
 pwd
 ls
 ls -la
-mkdir -p lab12_demo/dir1 lab12_demo/dir2
-cd lab12_demo
+mkdir -p labor12_demo/dir1 labor12_demo/dir2
+cd labor12_demo
 pwd
 touch file1.txt file2.txt notes.txt
 ls -la

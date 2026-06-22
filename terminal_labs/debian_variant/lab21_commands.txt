@@ -1,0 +1,14 @@
+# Лаба 21 - IPC Linux. Каналы
+# Код подается в nano целиком через Ctrl+R, без построчных скринов
+
+mkdir -p labor21
+printf '#include <stdio.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <unistd.h>\n\nint main(void) {\n    int fd[2];\n    char buf[64];\n    ssize_t n;\n\n    pipe(fd);\n    pid_t pid = fork();\n    if (pid == 0) {\n        close(fd[0]);\n        write(fd[1], "Hello pipe\\n", 11);\n        close(fd[1]);\n        return 0;\n    }\n\n    close(fd[1]);\n    n = read(fd[0], buf, sizeof(buf) - 1);\n    if (n > 0) {\n        buf[n] = '\''\\0'\'';\n        printf("%s", buf);\n    }\n    close(fd[0]);\n    wait(NULL);\n    return 0;\n}\n' > labor21/pipe_src.txt
+printf '#include <stdio.h>\n\nint main(void) {\n    FILE *fp = popen("printf '\''pear\\napple\\nbanana\\n'\'' | sort", "r");\n    char line[64];\n\n    while (fgets(line, sizeof(line), fp))\n        printf("%s", line);\n\n    pclose(fp);\n    return 0;\n}\n' > labor21/popen_src.txt
+nano labor21/pipe_demo.c ### wait=1; key=ctrl+r; wait=1; type=labor21/pipe_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+nano labor21/popen_demo.c ### wait=1; key=ctrl+r; wait=1; type=labor21/popen_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+cat labor21/pipe_demo.c
+cat labor21/popen_demo.c
+gcc labor21/pipe_demo.c -o labor21/pipe_demo
+gcc labor21/popen_demo.c -o labor21/popen_demo
+./labor21/pipe_demo
+./labor21/popen_demo

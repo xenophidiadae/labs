@@ -1,0 +1,22 @@
+# Лаба 12 - Введение Terminal
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+pwd
+ls
+ls -la
+mkdir -p labor12_demo/dir1 labor12_demo/dir2
+cd labor12_demo
+pwd
+touch file1.txt file2.txt notes.txt
+ls -la
+cp file1.txt file1_copy.txt
+mv file2.txt file2_renamed.txt
+ls -la
+cat notes.txt
+head -n 5 notes.txt
+tail -n 5 notes.txt
+less --version
+nano --version
+vim --version
+cd ..
+pwd

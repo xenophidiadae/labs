@@ -1,0 +1,17 @@
+# Лаба 14 - Работа в редакторе vim
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; vim-quit
+
+mkdir -p labor14
+touch labor14/vim_demo.txt
+printf 'first line\nsecond line\nthird line\n' > labor14/vim_demo.txt
+cat labor14/vim_demo.txt
+vim labor14/vim_demo.txt ### wait=1; type=:set number; enter; wait=1; vim-quit
+vim labor14/vim_demo.txt ### wait=1; key=shift+g; wait=1; vim-quit
+vim labor14/vim_demo.txt ### wait=1; type=gg; wait=1; vim-quit
+vim labor14/vim_demo.txt ### wait=1; type=A !!!; wait=1; key=Escape; type=:wq; enter
+cat labor14/vim_demo.txt
+vim labor14/vim_demo.txt ### wait=1; type=ggOInserted line; wait=1; key=Escape; type=:wq; enter
+cat labor14/vim_demo.txt
+vim labor14/vim_demo.txt ### wait=1; type=:%s/line/STRING/g; enter; wait=1; type=:wq; enter
+cat labor14/vim_demo.txt
+vim labor14/vim_demo.txt ### wait=1; type=:!pwd; enter; wait=1; vim-quit

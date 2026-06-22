@@ -1,0 +1,15 @@
+# Лаба 16 - Динамические библиотеки Linux
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+pwd
+ls /lib
+ls /usr/lib | head
+ldd /bin/ls
+ldd /bin/cat
+ldconfig -p | grep libc
+ldconfig -p | grep libm
+file /lib/x86_64-linux-gnu/libc.so.6
+nm -D /lib/x86_64-linux-gnu/libc.so.6 | head
+readelf -d /bin/ls
+cat /etc/ld.so.conf
+ls /etc/ld.so.conf.d

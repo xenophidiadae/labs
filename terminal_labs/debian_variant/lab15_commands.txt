@@ -1,0 +1,15 @@
+# Лаба 15 - Bash script
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+mkdir -p labor15
+cp templates/myscript.sh labor15/myscript.sh
+cat labor15/myscript.sh
+chmod +x labor15/myscript.sh
+ls -la labor15/myscript.sh
+./labor15/myscript.sh
+cp templates/check_script.sh labor15/check_script.sh
+cat labor15/check_script.sh
+chmod +x labor15/check_script.sh
+./labor15/check_script.sh
+sort labor15/myscript.sh
+test -f labor15/myscript.sh && echo "Проверка файла пройдена"

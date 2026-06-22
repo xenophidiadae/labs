@@ -1,0 +1,17 @@
+# Лаба 22 - Сигналы и сокеты
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+mkdir -p labor22
+sleep 1000 &
+jobs
+ps -ef | grep sleep
+kill -SIGSTOP %1
+kill -SIGCONT %1
+kill -SIGTERM %1
+ping -c 2 127.0.0.1
+ss -ltn
+ss -lun
+hostname -I
+nc -l 127.0.0.1 5050 > labor22/socket_output.txt &
+echo hello from client | nc 127.0.0.1 5050
+cat labor22/socket_output.txt

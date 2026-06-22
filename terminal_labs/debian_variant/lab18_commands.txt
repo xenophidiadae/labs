@@ -1,0 +1,14 @@
+# Лаба 18 - Перевод проекта между C и C++
+# Код подается в nano целиком через Ctrl+R, без построчных скринов
+
+mkdir -p labor18
+printf '#include <stdio.h>\n#include <stdlib.h>\n\ntypedef struct {\n    char title[32];\n    int year;\n} Book;\n\nint cmp(const void *a, const void *b) {\n    return ((Book *)a)->year - ((Book *)b)->year;\n}\n\nint main(void) {\n    Book books[] = {{"C", 2001}, {"CPP", 1998}, {"Linux", 2010}};\n    qsort(books, 3, sizeof(Book), cmp);\n    for (int i = 0; i < 3; i++)\n        printf("%s %d\\n", books[i].title, books[i].year);\n    return 0;\n}\n' > labor18/books_c_src.txt
+printf '#include <algorithm>\n#include <iostream>\n#include <string>\n#include <vector>\n\nstruct Book {\n    std::string title;\n    int year;\n};\n\nint main() {\n    std::vector<Book> books{{"C", 2001}, {"CPP", 1998}, {"Linux", 2010}};\n    std::sort(books.begin(), books.end(), [](const Book& a, const Book& b) { return a.year < b.year; });\n    for (const auto& book : books)\n        std::cout << book.title << " " << book.year << "\\n";\n    return 0;\n}\n' > labor18/books_cpp_src.txt
+nano labor18/books_c.c ### wait=1; key=ctrl+r; wait=1; type=labor18/books_c_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+nano labor18/books_cpp.cpp ### wait=1; key=ctrl+r; wait=1; type=labor18/books_cpp_src.txt; enter; wait=1; key=ctrl+o; wait=1; enter; wait=1; key=ctrl+x
+cat labor18/books_c.c
+cat labor18/books_cpp.cpp
+gcc labor18/books_c.c -o labor18/books_c
+g++ labor18/books_cpp.cpp -o labor18/books_cpp
+./labor18/books_c
+./labor18/books_cpp

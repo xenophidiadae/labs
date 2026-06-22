@@ -1,0 +1,16 @@
+# Лаба 13 - Terminal часть II
+# Для интерактивных команд можно дописывать пост-действия: ### wait=1; enter
+
+mkdir -p labor13/project/src labor13/project/doc labor13/project/assets/images labor13/project/assets/styles labor13/project/assets/scripts
+touch labor13/project/src/main.py labor13/project/src/utils.py labor13/project/src/config.json
+ls -la labor13/project
+find labor13 -name "*.py"
+find labor13 -name "*.json"
+chmod 755 labor13/project/src/main.py
+ls -la labor13/project/src
+grep "main" labor13/project/src/main.py
+sed -n '1,5p' labor13/project/src/main.py
+ps aux
+ps -ef
+pgrep bash
+pstree

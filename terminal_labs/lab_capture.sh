@@ -16,6 +16,8 @@ Options:
   -l FILE         save command input/output to a text file;
                   for multiple command files, everything is appended into one log
   --full-screen   capture the whole screen instead of the terminal window
+  --click-focus   click inside the terminal before every command
+  --paste-input   enter commands via clipboard paste instead of xdotool type
   -h, --help      show this help
 
 Notes:
@@ -23,6 +25,8 @@ Notes:
   - When several .txt files are found, they are processed one by one in name order.
   - The terminal is cleared between command files.
   - The script literally types commands into the chosen terminal window via xdotool.
+  - Some terminals (GNOME Terminal, Ghostty) may need click-to-focus behavior.
+  - Some terminals also ignore synthetic typing; for them the script can paste commands.
   - You can add post-actions after a command: vim test.txt ### wait=1; vim-quit
   - Supported post-actions: wait=N, key=KEY, type=TEXT, enter, vim-quit, vim-save-quit, confirm-install.
   - Install dependencies: xdotool + one of import/scrot/gnome-screenshot/maim.
@@ -51,10 +55,56 @@ focus_target_window() {
   sleep 0.5
 }
 
+click_target_window() {
+  focus_target_window
+
+  xdotool mousemove --window "$WINDOW_ID" 120 120 click 1 2>/dev/null || \
+    xdotool click 1 2>/dev/null || true
+  sleep 0.2
+}
+
+prepare_target_window() {
+  focus_target_window
+
+  if [[ "$CLICK_FOCUS" == "1" ]]; then
+    click_target_window
+  fi
+}
+
+set_clipboard_text() {
+  local text="$1"
+
+  if command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$text" | xclip -selection clipboard
+    return 0
+  fi
+
+  if command -v xsel >/dev/null 2>&1; then
+    printf '%s' "$text" | xsel --clipboard --input
+    return 0
+  fi
+
+  printf 'Paste input mode requires xclip or xsel.\n' >&2
+  exit 1
+}
+
+paste_text() {
+  local text="$1"
+
+  prepare_target_window
+  set_clipboard_text "$text"
+  sleep 0.1
+
+  xdotool key --window "$WINDOW_ID" --clearmodifiers ctrl+shift+v 2>/dev/null || true
+  sleep 0.1
+  xdotool key --window "$WINDOW_ID" --clearmodifiers shift+Insert 2>/dev/null || true
+  sleep 0.2
+}
+
 send_key() {
   local key_name="$1"
 
-  focus_target_window
+  prepare_target_window
   xdotool key --window "$WINDOW_ID" --clearmodifiers "$key_name" 2>/dev/null || \
     xdotool key --clearmodifiers "$key_name"
 }
@@ -62,9 +112,27 @@ send_key() {
 send_text() {
   local text="$1"
 
-  focus_target_window
+  if [[ "$INPUT_MODE" == 'paste' ]]; then
+    paste_text "$text"
+    return 0
+  fi
+
+  prepare_target_window
   xdotool type --window "$WINDOW_ID" --clearmodifiers --delay 25 "$text" 2>/dev/null || \
     xdotool type --clearmodifiers --delay 25 "$text"
+}
+
+detect_click_focus_need() {
+  local window_name
+  local window_class
+
+  window_name="$(xdotool getwindowname "$WINDOW_ID" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  window_class="$(xprop -id "$WINDOW_ID" WM_CLASS 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+
+  if [[ "$window_name" == *ghostty* || "$window_name" == *gnome-terminal* || "$window_class" == *ghostty* || "$window_class" == *gnome-terminal* ]]; then
+    CLICK_FOCUS='1'
+    INPUT_MODE='paste'
+  fi
 }
 
 trim_whitespace() {
@@ -296,6 +364,8 @@ LOG_FILE=''
 CURRENT_LOG_FILE=''
 TOTAL_SCREENSHOTS=0
 COMMAND_FILES=()
+CLICK_FOCUS='0'
+INPUT_MODE='type'
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -323,6 +393,14 @@ while [[ $# -gt 0 ]]; do
       FULL_SCREEN='1'
       shift
       ;;
+    --click-focus)
+      CLICK_FOCUS='1'
+      shift
+      ;;
+    --paste-input)
+      INPUT_MODE='paste'
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -338,12 +416,22 @@ done
 collect_command_files "$COMMANDS_PATH"
 
 require_cmd xdotool
+require_cmd xprop
 check_session
 SCREENSHOT_TOOL="$(pick_screenshot_tool)"
 
 if [[ -z "$WINDOW_ID" || "$WINDOW_ID" == "0" ]]; then
   printf 'Please click on the target terminal window with your mouse...\n'
   WINDOW_ID="$(xdotool selectwindow)"
+fi
+
+detect_click_focus_need
+
+if [[ "$INPUT_MODE" == 'paste' ]]; then
+  if ! command -v xclip >/dev/null 2>&1 && ! command -v xsel >/dev/null 2>&1; then
+    printf 'Paste input mode needs xclip or xsel.\n' >&2
+    exit 1
+  fi
 fi
 
 mkdir -p "$OUTPUT_DIR"
@@ -358,6 +446,8 @@ printf 'Saving screenshots to: %s\n' "$OUTPUT_DIR"
 if [[ -n "$LOG_FILE" ]]; then
   printf 'Saving command log to: %s\n' "$LOG_FILE"
 fi
+printf 'Click-to-focus mode: %s\n' "$CLICK_FOCUS"
+printf 'Input mode: %s\n' "$INPUT_MODE"
 printf 'Found command files: %d\n' "${#COMMAND_FILES[@]}"
 printf 'Starting in 3 seconds. DO NOT touch the mouse or keyboard...\n'
 sleep 3
@@ -396,7 +486,7 @@ for command_file in "${COMMAND_FILES[@]}"; do
 
     printf '[%02d] $ %s\n' "$counter" "$COMMAND_TEXT" >> "$CURRENT_LOG_FILE"
 
-    focus_target_window
+    prepare_target_window
     send_key ctrl+u
     sleep 0.2
     send_text "$COMMAND_TEXT"

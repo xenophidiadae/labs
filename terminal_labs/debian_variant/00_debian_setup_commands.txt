@@ -1,0 +1,6 @@
+## Debian setup for all labs
+## Run in an X11 session if you plan to use lab_capture.sh
+
+sudo apt update
+sudo apt install -y build-essential bash coreutils findutils grep sed procps psmisc tree file binutils libc6-dev man-db vim nano netcat-openbsd iputils-ping iproute2 xdotool gnome-screenshot imagemagick x11-utils scrot maim
+echo "$XDG_SESSION_TYPE"
